@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MotionScene xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <ConstraintSet android:id="@+id/start">
+        <Constraint android:id="@id/btnShrink">
+            <Layout
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="12dp"
+                android:layout_marginBottom="8dp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent" />
+        </Constraint>
+        <Constraint android:id="@id/btnClose">
+            <PropertySet android:visibility="visible" />
+        </Constraint>
+        <Constraint android:id="@id/btnPlay">
+            <PropertySet android:visibility="visible" />
+        </Constraint>
+        <Constraint android:id="@id/progressbar">
+            <PropertySet android:visibility="visible" />
+        </Constraint>
+        <Constraint android:id="@id/btnFullscreen">
+            <PropertySet android:visibility="visible" />
+        </Constraint>
+    </ConstraintSet>
+
+    <ConstraintSet android:id="@+id/end">
+        <Constraint android:id="@id/btnShrink">
+            <Layout
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+        </Constraint>
+        <Constraint android:id="@id/btnClose">
+            <PropertySet android:visibility="gone" />
+        </Constraint>
+        <Constraint android:id="@id/btnPlay">
+            <PropertySet android:visibility="gone" />
+        </Constraint>
+        <Constraint android:id="@id/progressbar">
+            <PropertySet android:visibility="gone" />
+        </Constraint>
+        <Constraint android:id="@id/btnFullscreen">
+            <PropertySet android:visibility="gone" />
+        </Constraint>
+    </ConstraintSet>
+
+    <Transition
+        app:constraintSetEnd="@id/end"
+        app:constraintSetStart="@id/start"
+        app:duration="200" />
+</MotionScene>
