@@ -7,7 +7,8 @@
     <FrameLayout
         android:id="@+id/coreView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:background="#000001">
 
         <TextureView
             android:id="@+id/window"
@@ -19,6 +20,19 @@
             layout="@layout/view_media_controller"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
+
+        <FrameLayout
+            android:id="@+id/loading"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#9119191A">
+
+            <ProgressBar
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:indeterminateTint="@color/white" />
+        </FrameLayout>
     </FrameLayout>
 
 </FrameLayout>

@@ -57,7 +57,9 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
     private val screenWidth: Int
     private val screenHeight: Int
 
-    private lateinit var vb: SpDemoBinding
+    private val vb by lazy(LazyThreadSafetyMode.NONE) {
+        SpDemoBinding.inflate(layoutInflater)
+    }
 
     // ============================ player ==========================
 
@@ -101,8 +103,8 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        vb = SpDemoBinding.inflate(layoutInflater)
         setContentView(vb.root)
+        vb.root.background.alpha = 0
         vb.root.setOnTouchListener(touchHandler)
         vb.window.surfaceTextureListener = surfaceProvider
         initDefaultScreenViews()
@@ -120,6 +122,8 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
         params.format = PixelFormat.TRANSLUCENT
         params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR or
+            WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS or
             WindowManager.LayoutParams.FLAG_SPLIT_TOUCH or
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -177,6 +181,7 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
             val started = isStarted
             setPlayerStart(false)
             isStarted = started
+            surfaceProvider.notFirstRender = true
         }
     }
 
@@ -199,13 +204,21 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
     override fun getAssociatedActivity(): Activity = requireNotNull(super.getAssociatedActivity())
 
     fun setVideoSource(path: String) {
-        val player = this.player ?: return
-        player.reset()
+        var player = this.player
+        if (player == null) {
+            initPlayer()
+            player = requirePlayer()
+        } else {
+            player.reset()
+            surfaceProvider.onPlayerRelease()
+        }
+        switchLoading(true)
         player.setDataSource(path)
         player.prepareAsync()
         player.isLooping = true
         onSpeedChanged(vb.controllerView.maxScreen.btn10)
         isStarted = true
+        Log.d(TAG, "setVideoSource: $path")
     }
 
     private fun initBackPressed() {
@@ -319,11 +332,17 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
 
     private fun changeScreenMode(screenMode: Int, anim: Boolean = true) {
         if (screenMode == SCREEN_MODE_MAX) {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+            window.clearFlags(
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
+            )
             setSystemBarColor(Color.BLACK, Color.BLACK)
             vb.controllerView.root.transitionToEnd()
         } else if (this.screenMode == SCREEN_MODE_MAX) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
+            )
             setSystemBarColor(startStatusBarColor, startNavigationBarColor)
             vb.controllerView.root.transitionToStart()
         } else if (screenMode == SCREEN_MODE_DEFAULT) {
@@ -337,7 +356,7 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
         val videoHeight = player.videoHeight
         val rotation = screenMode == SCREEN_MODE_MAX && videoWidth > videoHeight
         if (videoWidth <= 0 || videoHeight <= 0) {
-            Log.d(TAG, "Unable to parse video")
+            Log.w(TAG, "Unable to parse video")
             return
         }
         var maxSize: SizeF = when (screenMode) {
@@ -401,6 +420,7 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
             }
             animator.start()
         }
+        this.screenMode = screenMode
     }
 
     private fun setPlayerStart(start: Boolean) {
@@ -426,12 +446,29 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
         Log.d(TAG, "setPlayerStart: $start , $isPlaying")
     }
 
+    private fun switchLoading(show: Boolean) {
+        if (show) {
+            vb.loading.isVisible = true
+            vb.controllerView.root.isInvisible = true
+            val params = vb.coreView.layoutParams
+            if (params.width < 0 || params.height < 0) {
+                params.width = (screenWidth * DEFAULT_WIDTH_PERCENTAGE).roundToInt()
+                params.height = (screenHeight * DEFAULT_HEIGHT_PERCENTAGE).roundToInt()
+                vb.coreView.layoutParams = params
+            }
+        } else {
+            vb.loading.isGone = true
+            vb.controllerView.root.isVisible = true
+        }
+    }
+
     private fun requirePlayer() = checkNotNull(this.player)
 
     private fun releasePlayer() {
         val player = this.player ?: return
         player.reset()
         player.release()
+        this.surfaceProvider.onPlayerRelease()
         this.player = null
         Log.d(TAG, "release player.")
     }
@@ -442,18 +479,10 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
             player = MediaPlayer()
             this.player = player
             Log.d(TAG, "init player.")
-            window.decorView.isInvisible = true
+            switchLoading(true)
         }
         player.setOnPreparedListener {
             surfaceProvider.onPlayerPrepared()
-            window.decorView.isVisible = true
-        }
-        player.setOnInfoListener { _, what, extra ->
-            Log.d(TAG, "on player info: $what , $extra")
-            if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
-                setPlayerStart(isStarted)
-            }
-            false
         }
     }
 
@@ -474,10 +503,13 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
         private var texture: SurfaceTexture? = null
         private var surface: Surface? = null
 
+        var notFirstRender = true
+
         var isMediaPrepared = false
             private set
 
-        val wasSurfaceProvided get() = surface != null
+        var wasSurfaceProvided = false
+            private set
 
         override fun onSurfaceTextureAvailable(texture: SurfaceTexture, width: Int, height: Int) {
             Log.d(TAG, "onSurfaceTextureAvailable: $width , $height")
@@ -493,19 +525,34 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
             this.surface?.release()
             this.surface = null
             this.texture = null
+            this.wasSurfaceProvided = false
+            this.notFirstRender = true
             return true
         }
 
-        override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
+        override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+            if (notFirstRender) {
+                Log.d(TAG, "first render.")
+                setPlayerStart(isStarted)
+                notFirstRender = false
+            }
+        }
 
         fun onPlayerPrepared() {
             Log.d(TAG, "MediaPlayer prepared.")
             isMediaPrepared = true
+            switchLoading(false)
             tryToComplete()
         }
 
+        fun onPlayerRelease() {
+            isMediaPrepared = false
+            wasSurfaceProvided = false
+            notFirstRender = true
+        }
+
         private fun tryToComplete() {
-            if (this.surface != null || !this.isMediaPrepared) {
+            if (this.wasSurfaceProvided || !this.isMediaPrepared) {
                 return
             }
             val texture = this.texture ?: return
@@ -513,11 +560,15 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
             val videoWidth = player.videoWidth
             val videoHeight = player.videoHeight
             texture.setDefaultBufferSize(videoWidth, videoHeight)
-            val surface = Surface(texture)
+            var surface = this.surface
+            if (surface == null) {
+                surface = Surface(texture)
+                this.surface = surface
+            }
             player.setSurface(surface)
+            this.wasSurfaceProvided = true
+            Log.d(TAG, "Surface set on player. $videoWidth , $videoHeight")
             changeScreenMode(screenMode, false)
-            this.surface = surface
-            Log.d(TAG, "Surface set on player.")
             val started = isStarted
             setPlayerStart(true)
             isStarted = started
@@ -532,11 +583,7 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
 
         override fun onClick() {
             super.onClick()
-            val view = if (screenMode == SCREEN_MODE_MAX) {
-                vb.controllerView.maxScreen.root
-            } else {
-                vb.controllerView.defaultScreen.root
-            }
+            val view = vb.controllerView.root
             view.animation = AnimationUtils.loadAnimation(
                 context,
                 if (view.isVisible) R.anim.media_control_out

@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowInsetsControllerCompat
 
 /**
  *
@@ -17,6 +18,9 @@ class Demo2Activity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val wc = WindowInsetsControllerCompat(window, window.decorView)
+        window.statusBarColor = Color.WHITE
+        wc.isAppearanceLightStatusBars = true
         setContentView(TextView(this).also {
             it.text = "I'm Demo2!\n\nclick me to demo3"
             it.setTextColor(Color.RED)

@@ -1,13 +1,12 @@
 package com.ysj.spwindow.demo
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.ysj.spwindow.demo.windows.VideoSpWindow
 
@@ -21,6 +20,13 @@ class Demo1Activity : AppCompatActivity(R.layout.activity_demo1) {
 
     private val demoWindow by lazy(LazyThreadSafetyMode.NONE) {
         VideoSpWindow(this)
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val wc = WindowInsetsControllerCompat(window, window.decorView)
+        window.statusBarColor = Color.WHITE
+        wc.isAppearanceLightStatusBars = true
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
