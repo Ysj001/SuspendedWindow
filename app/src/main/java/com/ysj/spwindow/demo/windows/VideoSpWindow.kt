@@ -160,6 +160,9 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
         spWindow.setPlayerStart(false)
         player = spWindow.requirePlayer()
         spWindow.player = null
+        if (spWindow.surfaceProvider.isMediaPrepared && !surfaceProvider.isMediaPrepared) {
+            surfaceProvider.onPlayerPrepared()
+        }
         setPlayerStart(started)
         contentX = spWindow.contentX
         contentY = spWindow.contentY
@@ -212,7 +215,7 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
             player.reset()
             surfaceProvider.onPlayerRelease()
         }
-        switchLoading(true)
+        refreshLoadingUI()
         player.setDataSource(path)
         player.prepareAsync()
         player.isLooping = true
@@ -446,8 +449,11 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
         Log.d(TAG, "setPlayerStart: $start , $isPlaying")
     }
 
-    private fun switchLoading(show: Boolean) {
-        if (show) {
+    private fun refreshLoadingUI() {
+        if (surfaceProvider.isMediaPrepared) {
+            vb.loading.isGone = true
+            vb.controllerView.root.isVisible = true
+        } else {
             vb.loading.isVisible = true
             vb.controllerView.root.isInvisible = true
             val params = vb.coreView.layoutParams
@@ -456,9 +462,6 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
                 params.height = (screenHeight * DEFAULT_HEIGHT_PERCENTAGE).roundToInt()
                 vb.coreView.layoutParams = params
             }
-        } else {
-            vb.loading.isGone = true
-            vb.controllerView.root.isVisible = true
         }
     }
 
@@ -479,8 +482,8 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
             player = MediaPlayer()
             this.player = player
             Log.d(TAG, "init player.")
-            switchLoading(true)
         }
+        refreshLoadingUI()
         player.setOnPreparedListener {
             surfaceProvider.onPlayerPrepared()
         }
@@ -541,7 +544,7 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
         fun onPlayerPrepared() {
             Log.d(TAG, "MediaPlayer prepared.")
             isMediaPrepared = true
-            switchLoading(false)
+            refreshLoadingUI()
             tryToComplete()
         }
 
