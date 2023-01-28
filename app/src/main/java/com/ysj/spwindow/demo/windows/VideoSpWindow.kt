@@ -26,8 +26,6 @@ import androidx.core.view.*
 import com.ysj.lib.spwindow.SuspendedWindow
 import com.ysj.spwindow.demo.R
 import com.ysj.spwindow.demo.databinding.SpDemoBinding
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -99,6 +97,8 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
     init {
         setCancelable(false)
         setCanceledOnTouchOutside(false)
+        // 默认出现的位置
+//        contentX = screenWidth * (1 - DEFAULT_WIDTH_PERCENTAGE)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -107,6 +107,23 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
         setContentView(vb.root)
         vb.root.background.alpha = 0
         vb.root.setOnTouchListener(touchHandler)
+        val params = vb.coreView.layoutParams
+        params.width = (screenWidth * DEFAULT_WIDTH_PERCENTAGE).roundToInt()
+        params.height = (screenHeight * DEFAULT_HEIGHT_PERCENTAGE).roundToInt()
+        contentX = if ((contentX + params.width / 2f).roundToInt() > screenWidth / 2) {
+            screenWidth - params.width - border.right.toFloat()
+        } else {
+            border.left.toFloat()
+        }
+        contentY = if (contentY + params.height > screenHeight - border.bottom) {
+            screenHeight - params.height - border.bottom.toFloat()
+        } else if (contentY < border.top) {
+            border.top.toFloat()
+        } else {
+            contentY
+        }
+        vb.coreView.x = contentX
+        vb.coreView.y = contentY
         vb.window.surfaceTextureListener = surfaceProvider
         initDefaultScreenViews()
         initMaxScreenViews()
@@ -152,6 +169,7 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
             spWindow.surfaceProvider.onPlayerPrepared()
         }
         this.player = null
+        spWindow.border.set(border)
         spWindow.contentX = contentX
         spWindow.contentY = contentY
         spWindow.screenMode = screenMode
@@ -213,7 +231,9 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
 
     fun setBorder(left: Int, top: Int, right: Int, bottom: Int) {
         border.set(left, top, right, bottom)
-        touchHandler.toBorder()
+        if (isShowing && screenMode != SCREEN_MODE_MAX && surfaceProvider.isMediaPrepared) {
+            touchHandler.toBorder()
+        }
     }
 
     fun setVideoSource(path: String) {
@@ -344,13 +364,14 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
     }
 
     private fun changeScreenMode(screenMode: Int, anim: Boolean = true) {
+        val isExitFullScreen = this.screenMode == SCREEN_MODE_MAX && screenMode != SCREEN_MODE_MAX
         if (screenMode == SCREEN_MODE_MAX) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
             wc.saveStyle()
             wc.isLightStatusBar = false
             wc.isLightNavigationBar = false
             vb.controllerView.root.transitionToEnd()
-        } else if (this.screenMode == SCREEN_MODE_MAX) {
+        } else if (isExitFullScreen) {
             window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
             wc.restoreStyle()
             vb.controllerView.root.transitionToStart()
@@ -403,7 +424,6 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
         val currentY = coreView.y
         val currentRotation = coreView.rotation
         ValueAnimator.ofFloat(0f, 1f).also { animator ->
-            var offsetX = 0f
             animator.duration = if (anim) 200 else 0
             animator.addUpdateListener {
                 val value = it.animatedValue as Float
@@ -417,25 +437,33 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
                     coreView.y = currentY + ((screenHeight - size.height) / 2f - currentY) * value
                     background.alpha = backgroundAlpha + ((255 - backgroundAlpha) * value).roundToInt()
                 } else {
-                    val targetX = currentX + (contentX - currentX) * value
-                    val inRight = (coreView.x + params.width / 2f).roundToInt() <= screenWidth / 2
-                    coreView.x = if (inRight) targetX else {
-                        val rightBorder = border.right + screenWidth - params.width.toFloat()
-                        val resultX = if (targetX > rightBorder) min(rightBorder, targetX) else max(rightBorder, targetX)
-                        offsetX = resultX - targetX
-                        resultX
+                    val width = if (isExitFullScreen) size.width else currentWidth
+                    val height = if (isExitFullScreen) size.height else currentHeight
+                    val resultX = when {
+                        (contentX + width / 2f).roundToInt() > screenWidth / 2 -> screenWidth - size.width - border.right.toFloat()
+                        else -> border.left.toFloat()
                     }
-                    coreView.y = currentY + (contentY - currentY) * value
-                    background.alpha = backgroundAlpha + ((0 - backgroundAlpha) * value).roundToInt()
+                    val resultY = when {
+                        contentY + height > screenHeight - border.bottom -> screenHeight - size.height - border.bottom.toFloat()
+                        contentY < border.top -> border.top.toFloat()
+                        else -> contentY
+                    }
+                    coreView.x = currentX + (resultX - currentX) * value
+                    coreView.y = currentY + (resultY - currentY) * value
+                    if (isExitFullScreen) {
+                        background.alpha = backgroundAlpha + ((0 - backgroundAlpha) * value).roundToInt()
+                    }
                 }
                 coreView.rotation = currentRotation + ((if (rotation) 90f else 0f) - currentRotation) * value
             }
             animator.doOnEnd {
-                contentX += offsetX
+                if (screenMode != SCREEN_MODE_MAX) {
+                    contentX = coreView.x
+                    contentY = coreView.y
+                }
             }
             animator.start()
         }
-        this.screenMode = screenMode
     }
 
     private fun setPlayerStart(start: Boolean) {
@@ -468,12 +496,6 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
         } else {
             vb.loading.isVisible = true
             vb.controllerView.root.isInvisible = true
-            val params = vb.coreView.layoutParams
-            if (params.width < 0 || params.height < 0) {
-                params.width = (screenWidth * DEFAULT_WIDTH_PERCENTAGE).roundToInt()
-                params.height = (screenHeight * DEFAULT_HEIGHT_PERCENTAGE).roundToInt()
-                vb.coreView.layoutParams = params
-            }
         }
     }
 
@@ -630,29 +652,27 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
         }
 
         fun toBorder() {
-            val targetX = if ((vb.coreView.x + vb.coreView.width / 2f).roundToInt() > screenWidth / 2) {
+            contentX = if ((contentX + vb.coreView.width / 2f).roundToInt() > screenWidth / 2) {
                 // to right
                 screenWidth - vb.coreView.width - border.right.toFloat()
             } else {
                 // to left
                 border.left.toFloat()
             }
-            val targetY = if (vb.coreView.y + vb.coreView.height > screenHeight - border.bottom) {
+            contentY = if (contentY + vb.coreView.height > screenHeight - border.bottom) {
                 // to bottom
                 screenHeight - vb.coreView.height - border.bottom.toFloat()
-            } else if (vb.coreView.y < border.top) {
+            } else if (contentY < border.top) {
                 // to top
                 border.top.toFloat()
             } else {
-                vb.coreView.y
+                contentY
             }
             vb.coreView.animate()
                 .setDuration(200)
-                .x(targetX)
-                .y(targetY)
+                .x(contentX)
+                .y(contentY)
                 .start()
-            contentX = targetX
-            contentY = targetY
         }
 
         private fun touchIn(view: View, event: MotionEvent, offsetLeft: Int = 0, offsetRight: Int = 0): Boolean {
