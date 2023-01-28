@@ -13,6 +13,7 @@ import android.view.WindowManager
 import androidx.annotation.FloatRange
 import androidx.annotation.StyleRes
 import androidx.appcompat.app.AppCompatDialog
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -25,17 +26,8 @@ import androidx.core.view.WindowInsetsControllerCompat
  */
 open class SuspendedWindow @JvmOverloads constructor(
     context: Context,
-    @StyleRes protected val themeId: Int = 0,
+    @StyleRes protected val themeId: Int = ResourcesCompat.ID_NULL,
 ) : AppCompatDialog(context, themeId) {
-
-    companion object {
-        private const val TAG = "SuspendedWindow"
-    }
-
-    protected var startStatusBarColor = 0
-    protected var startNavigationBarColor = 0
-    protected var startStatusBarShow = true
-    protected var startNavigationBarShow = true
 
     private val activityCallback = ActivityCallback()
 
@@ -48,26 +40,8 @@ open class SuspendedWindow @JvmOverloads constructor(
         setActivityLifecycleCallback(true)
     }
 
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        val associatedActivity = getAssociatedActivity()
-        if (associatedActivity != null) {
-            val aw = associatedActivity.window
-            startStatusBarColor = aw.statusBarColor
-            startNavigationBarColor = aw.navigationBarColor
-            val insets = ViewCompat.getRootWindowInsets(aw.decorView)
-            if (insets != null) {
-                startStatusBarShow = insets.isVisible(WindowInsetsCompat.Type.statusBars())
-                startNavigationBarShow = insets.isVisible(WindowInsetsCompat.Type.navigationBars())
-            }
-        }
-        Log.d(TAG, "associatedActivity=$associatedActivity , statusBarColor=$startStatusBarColor , navigationBarColor=$startNavigationBarColor")
-    }
-
     override fun onStop() {
         super.onStop()
-        setSystemBarColor(startStatusBarColor, startNavigationBarColor)
-        showSystemBar(startStatusBarShow, startNavigationBarShow)
         setActivityLifecycleCallback(false)
     }
 
@@ -116,40 +90,6 @@ open class SuspendedWindow @JvmOverloads constructor(
         Build.VERSION.SDK_INT < Build.VERSION_CODES.M -> WindowManager.LayoutParams.TYPE_TOAST
         Build.VERSION.SDK_INT < Build.VERSION_CODES.O -> WindowManager.LayoutParams.TYPE_PHONE
         else -> WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-    }
-
-    protected fun showSystemBar(statusBar: Boolean, navigationBar: Boolean) {
-        val associatedActivity = getAssociatedActivity() ?: return
-        val aw = associatedActivity.window
-        val wc = WindowInsetsControllerCompat(aw, aw.decorView)
-        if (statusBar) {
-            wc.show(WindowInsetsCompat.Type.statusBars())
-        } else {
-            wc.hide(WindowInsetsCompat.Type.statusBars())
-        }
-        if (navigationBar) {
-            wc.show(WindowInsetsCompat.Type.navigationBars())
-        } else {
-            wc.hide(WindowInsetsCompat.Type.navigationBars())
-        }
-    }
-
-    protected fun setSystemBarColor(statusBar: Int, navigationBar: Int) {
-        val associatedActivity = getAssociatedActivity() ?: return
-        val aw = associatedActivity.window
-        val wc = WindowInsetsControllerCompat(aw, aw.decorView)
-        aw.statusBarColor = statusBar
-        wc.isAppearanceLightStatusBars = luminance(statusBar) > 0.5f
-        aw.navigationBarColor = navigationBar
-        wc.isAppearanceLightNavigationBars = luminance(statusBar) > 0.5f
-    }
-
-    @FloatRange(from = 0.0, to = 1.0)
-    protected fun luminance(color: Int): Float {
-        val r = Color.red(color) / 255f
-        val g = Color.green(color) / 255f
-        val b = Color.blue(color) / 255f
-        return ((0.2126f * r) + (0.7152f * g) + (0.0722f * b))
     }
 
     private fun setActivityLifecycleCallback(register: Boolean) {
