@@ -130,8 +130,8 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        wc.statusBarColor(Color.TRANSPARENT)
-        wc.navigationBarColor(Color.TRANSPARENT)
+        wc.statusBarColor = Color.TRANSPARENT
+        wc.navigationBarColor = Color.TRANSPARENT
 
         refreshSpeedUI()
     }
@@ -340,20 +340,14 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
 
     private fun changeScreenMode(screenMode: Int, anim: Boolean = true) {
         if (screenMode == SCREEN_MODE_MAX) {
-            window.clearFlags(
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
-            )
-            wc.statusBarColor(Color.BLACK)
-            wc.navigationBarColor(Color.BLACK)
+            window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+            wc.saveStyle()
+            wc.isLightStatusBar = false
+            wc.isLightNavigationBar = false
             vb.controllerView.root.transitionToEnd()
         } else if (this.screenMode == SCREEN_MODE_MAX) {
-            window.addFlags(
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
-            )
-            wc.statusBarColor(Color.TRANSPARENT)
-            wc.navigationBarColor(Color.TRANSPARENT)
+            window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+            wc.restoreStyle()
             vb.controllerView.root.transitionToStart()
         } else if (screenMode == SCREEN_MODE_DEFAULT) {
             vb.controllerView.defaultScreen.root.transitionToStart()
@@ -370,7 +364,12 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
             return
         }
         var maxSize: SizeF = when (screenMode) {
-            SCREEN_MODE_MAX -> SizeF(screenWidth.toFloat(), screenHeight.toFloat())
+            SCREEN_MODE_MAX -> {
+                val rwi = ViewCompat.getRootWindowInsets(window.decorView)
+                val sbh = rwi?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
+                val nbh = rwi?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+                SizeF(screenWidth.toFloat(), screenHeight.toFloat() - sbh - nbh)
+            }
             SCREEN_MODE_MIN -> SizeF(
                 screenWidth * MIN_WIDTH_PERCENTAGE,
                 screenHeight * MIN_HEIGHT_PERCENTAGE

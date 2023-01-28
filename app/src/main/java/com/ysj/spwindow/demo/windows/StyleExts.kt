@@ -3,9 +3,9 @@ package com.ysj.spwindow.demo.windows
 import android.app.Dialog
 import android.graphics.Color
 import android.view.Window
-import androidx.annotation.FloatRange
-import androidx.core.view.WindowInsetsCompat
+import androidx.annotation.ColorInt
 import androidx.core.view.WindowInsetsControllerCompat
+import java.util.*
 
 /*
  * 一些通用样式的扩展
@@ -37,30 +37,56 @@ class WindowController(
     private val controller: WindowInsetsControllerCompat
 ) {
 
-    fun statusBarColor(color: Int) = apply {
-        val convertColor = convertColor(color)
-        window.statusBarColor = convertColor
-        controller.isAppearanceLightStatusBars = luminance(convertColor) > 0.5f
+    private val styleStack = Stack<Style>()
+
+    var statusBarColor: Int
+        @ColorInt get() = window.statusBarColor
+        set(@ColorInt value) {
+            val convertColor = convertColor(value)
+            window.statusBarColor = convertColor
+        }
+
+    var navigationBarColor: Int
+        @ColorInt get() = window.navigationBarColor
+        set(@ColorInt value) {
+            val convertColor = convertColor(value)
+            window.navigationBarColor = convertColor
+        }
+
+    var isLightStatusBar: Boolean
+        get() = controller.isAppearanceLightStatusBars
+        set(value) {
+            controller.isAppearanceLightStatusBars = value
+        }
+
+    var isLightNavigationBar: Boolean
+        get() = controller.isAppearanceLightNavigationBars
+        set(value) {
+            controller.isAppearanceLightNavigationBars = value
+        }
+
+    /**
+     * 保存当前样式。
+     */
+    fun saveStyle() {
+        styleStack.push(Style(
+            statusBarColor, navigationBarColor,
+            isLightStatusBar, isLightNavigationBar,
+        ))
     }
 
-    fun navigationBarColor(color: Int) = apply {
-        val convertColor = convertColor(color)
-        window.navigationBarColor = convertColor
-        controller.isAppearanceLightNavigationBars = luminance(convertColor) > 0.5f
-    }
-
-    fun showStatusBar() = controller.show(WindowInsetsCompat.Type.statusBars())
-    fun hideStatusBar() = controller.hide(WindowInsetsCompat.Type.statusBars())
-
-    fun showNavigationBar() = controller.show(WindowInsetsCompat.Type.navigationBars())
-    fun hideNavigationBar() = controller.hide(WindowInsetsCompat.Type.navigationBars())
-
-    @FloatRange(from = 0.0, to = 1.0)
-    fun luminance(color: Int): Float {
-        val r = Color.red(color) / 255f
-        val g = Color.green(color) / 255f
-        val b = Color.blue(color) / 255f
-        return ((0.2126f * r) + (0.7152f * g) + (0.0722f * b))
+    /**
+     * 还原之前保存的样式。
+     */
+    fun restoreStyle() {
+        if (styleStack.empty()) {
+            return
+        }
+        val style: Style = styleStack.pop()
+        statusBarColor = style.statusBarColor
+        navigationBarColor = style.navigationBarColor
+        isLightStatusBar = style.isLightStatusBar
+        isLightNavigationBar = style.isLightNavigationBar
     }
 
     private fun convertColor(color: Int) = when {
@@ -68,4 +94,11 @@ class WindowController(
         Color.alpha(color) == 0 -> COLOR_TRANSPARENT
         else -> color
     }
+
+    private class Style(
+        val statusBarColor: Int,
+        val navigationBarColor: Int,
+        val isLightStatusBar: Boolean,
+        val isLightNavigationBar: Boolean,
+    )
 }
