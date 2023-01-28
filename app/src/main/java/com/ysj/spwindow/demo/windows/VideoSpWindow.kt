@@ -211,6 +211,11 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
 
     override fun getAssociatedActivity(): Activity = requireNotNull(super.getAssociatedActivity())
 
+    fun setBorder(left: Int, top: Int, right: Int, bottom: Int) {
+        border.set(left, top, right, bottom)
+        touchHandler.toBorder()
+    }
+
     fun setVideoSource(path: String) {
         var player = this.player
         if (player == null) {
@@ -627,14 +632,14 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
         fun toBorder() {
             val targetX = if ((vb.coreView.x + vb.coreView.width / 2f).roundToInt() > screenWidth / 2) {
                 // to right
-                border.right + screenWidth - vb.coreView.width.toFloat()
+                screenWidth - vb.coreView.width - border.right.toFloat()
             } else {
                 // to left
                 border.left.toFloat()
             }
-            val targetY = if (vb.coreView.y + vb.coreView.height > border.bottom + screenHeight) {
+            val targetY = if (vb.coreView.y + vb.coreView.height > screenHeight - border.bottom) {
                 // to bottom
-                border.bottom + screenHeight - vb.coreView.height.toFloat()
+                screenHeight - vb.coreView.height - border.bottom.toFloat()
             } else if (vb.coreView.y < border.top) {
                 // to top
                 border.top.toFloat()

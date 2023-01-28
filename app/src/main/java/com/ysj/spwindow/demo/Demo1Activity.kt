@@ -46,6 +46,8 @@ class Demo1Activity : AppCompatActivity(R.layout.activity_demo1) {
     }
 
     fun onSpwShow(view: View) {
+        // 拖拽边界测试
+//        demoWindow.setBorder(50, 80, 20, 120)
         demoWindow.show()
         // 横屏测试
 //        demoWindow.setVideoSource("https://vd2.bdstatic.com/mda-mkbkn3298fc4qgia/sc/cae_h264/1636727844173084473/mda-mkbkn3298fc4qgia.mp4?v_from_s=hkapp-haokan-tucheng&auth_key=1673952367-0-0-942cc56206f7120a7bc07bfce6a8820b&bcevod_channel=searchbox_feed&pd=1&cd=0&pt=3&logid=0966589247&vid=1055240032501393989&abtest=&klogid=0966589247")
