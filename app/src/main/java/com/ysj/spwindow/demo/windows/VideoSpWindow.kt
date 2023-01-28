@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.SurfaceTexture
+import android.graphics.drawable.ColorDrawable
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
@@ -36,7 +37,7 @@ import kotlin.math.roundToLong
  * @author Ysj
  * Create time: 2023/1/10
  */
-class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindow) {
+class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_Common) {
 
     companion object {
 
@@ -55,7 +56,14 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
     }
 
     private val screenWidth: Int
+        get() = window.decorView.width.takeIf { it > 0 }
+            ?: context.resources.displayMetrics.widthPixels
+
     private val screenHeight: Int
+        get() = window.decorView.height.takeIf { it > 0 }
+            ?: context.resources.displayMetrics.heightPixels
+
+    private val wc by windowController()
 
     private val vb by lazy(LazyThreadSafetyMode.NONE) {
         SpDemoBinding.inflate(layoutInflater)
@@ -79,7 +87,7 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
 
     private val touchHandler = MTouchHandler()
 
-    private val region = Rect()
+    private val border = Rect()
 
     private var contentX = 0f
     private var contentY = 0f
@@ -89,13 +97,6 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
     private var screenMode = SCREEN_MODE_DEFAULT
 
     init {
-        val resources = context.resources
-        screenWidth = resources.displayMetrics.widthPixels
-        screenHeight = resources.displayMetrics.heightPixels
-        region.left = 0
-        region.top = 0
-        region.right = screenWidth
-        region.bottom = screenHeight
         setCancelable(false)
         setCanceledOnTouchOutside(false)
     }
@@ -117,8 +118,8 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
         initPlayer()
         val params = window.attributes
         params.gravity = Gravity.TOP
-        params.width = screenWidth
-        params.height = screenHeight
+        params.width = WindowManager.LayoutParams.MATCH_PARENT
+        params.height = WindowManager.LayoutParams.MATCH_PARENT
         params.format = PixelFormat.TRANSLUCENT
         params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -127,6 +128,10 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
             WindowManager.LayoutParams.FLAG_SPLIT_TOUCH or
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        wc.statusBarColor(Color.TRANSPARENT)
+        wc.navigationBarColor(Color.TRANSPARENT)
 
         refreshSpeedUI()
     }
@@ -339,14 +344,16 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
             )
-            setSystemBarColor(Color.BLACK, Color.BLACK)
+            wc.statusBarColor(Color.BLACK)
+            wc.navigationBarColor(Color.BLACK)
             vb.controllerView.root.transitionToEnd()
         } else if (this.screenMode == SCREEN_MODE_MAX) {
             window.addFlags(
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
             )
-            setSystemBarColor(startStatusBarColor, startNavigationBarColor)
+            wc.statusBarColor(Color.TRANSPARENT)
+            wc.navigationBarColor(Color.TRANSPARENT)
             vb.controllerView.root.transitionToStart()
         } else if (screenMode == SCREEN_MODE_DEFAULT) {
             vb.controllerView.defaultScreen.root.transitionToStart()
@@ -401,14 +408,15 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
                 params.height = currentHeight + ((size.height - currentHeight) * value).roundToInt()
                 coreView.layoutParams = params
                 if (screenMode == SCREEN_MODE_MAX) {
-                    coreView.x = if (rotation) (screenWidth - params.width) / 2f else currentX + (0 - currentX) * value
+                    val resultX = if (rotation) (screenWidth - params.width) / 2f else 0f
+                    coreView.x = currentX + (resultX - currentX) * value
                     coreView.y = currentY + ((screenHeight - size.height) / 2f - currentY) * value
                     background.alpha = backgroundAlpha + ((255 - backgroundAlpha) * value).roundToInt()
                 } else {
                     val targetX = currentX + (contentX - currentX) * value
                     val inRight = (coreView.x + params.width / 2f).roundToInt() <= screenWidth / 2
                     coreView.x = if (inRight) targetX else {
-                        val rightBorder = region.right - params.width.toFloat()
+                        val rightBorder = border.right + screenWidth - params.width.toFloat()
                         val resultX = if (targetX > rightBorder) min(rightBorder, targetX) else max(rightBorder, targetX)
                         offsetX = resultX - targetX
                         resultX
@@ -618,22 +626,29 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.SpWindo
         }
 
         fun toBorder() {
-            if ((vb.coreView.x + vb.coreView.width / 2f).roundToInt() > screenWidth / 2) {
+            val targetX = if ((vb.coreView.x + vb.coreView.width / 2f).roundToInt() > screenWidth / 2) {
                 // to right
-                vb.coreView.x = region.right.toFloat() - vb.coreView.width
+                border.right + screenWidth - vb.coreView.width.toFloat()
             } else {
                 // to left
-                vb.coreView.x = region.left.toFloat()
+                border.left.toFloat()
             }
-            if (vb.coreView.y + vb.coreView.height > region.bottom) {
+            val targetY = if (vb.coreView.y + vb.coreView.height > border.bottom + screenHeight) {
                 // to bottom
-                vb.coreView.y = region.bottom.toFloat() - vb.coreView.height
-            } else if (vb.coreView.y < region.top) {
+                border.bottom + screenHeight - vb.coreView.height.toFloat()
+            } else if (vb.coreView.y < border.top) {
                 // to top
-                vb.coreView.y = region.top.toFloat()
+                border.top.toFloat()
+            } else {
+                vb.coreView.y
             }
-            contentX = vb.coreView.x
-            contentY = vb.coreView.y
+            vb.coreView.animate()
+                .setDuration(200)
+                .x(targetX)
+                .y(targetY)
+                .start()
+            contentX = targetX
+            contentY = targetY
         }
 
         private fun touchIn(view: View, event: MotionEvent, offsetLeft: Int = 0, offsetRight: Int = 0): Boolean {
