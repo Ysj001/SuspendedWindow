@@ -139,6 +139,7 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
         params.height = WindowManager.LayoutParams.MATCH_PARENT
         params.format = PixelFormat.TRANSLUCENT
         params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or // 配合 FLAG_NOT_FOCUSABLE 会使其显示在 ime 下面
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR or
             WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS or
