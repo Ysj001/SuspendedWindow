@@ -12,6 +12,7 @@ import android.view.Window
 import android.view.WindowManager
 import androidx.annotation.StyleRes
 import androidx.appcompat.app.AppCompatDialog
+import androidx.collection.ArraySet
 import androidx.core.content.res.ResourcesCompat
 
 /**
@@ -27,6 +28,10 @@ open class SuspendedWindow @JvmOverloads constructor(
 
     private val activityCallback = ActivityCallback()
 
+    private val blacklist = ArraySet<Class<out Activity>>()
+
+    private val interceptList = ArraySet<Class<out Activity>>()
+
     override fun getWindow(): Window = checkNotNull(super.getWindow()) {
         "Dialog $this does not have a window."
     }
@@ -39,6 +44,30 @@ open class SuspendedWindow @JvmOverloads constructor(
     override fun onStop() {
         super.onStop()
         setActivityLifecycleCallback(false)
+    }
+
+    fun addBlackList(vararg clazz: Class<out Activity>) {
+        for (index in clazz.indices) {
+            blacklist.add(clazz[index])
+        }
+    }
+
+    fun removeBlackList(vararg clazz: Class<out Activity>) {
+        for (index in clazz.indices) {
+            blacklist.remove(clazz[index])
+        }
+    }
+
+    fun addInterceptList(vararg clazz: Class<out Activity>) {
+        for (index in clazz.indices) {
+            interceptList.add(clazz[index])
+        }
+    }
+
+    fun removeInterceptList(vararg clazz: Class<out Activity>) {
+        for (index in clazz.indices) {
+            interceptList.remove(clazz[index])
+        }
     }
 
     protected open fun onCreateNewWindow(context: Context): SuspendedWindow {
@@ -115,9 +144,20 @@ open class SuspendedWindow @JvmOverloads constructor(
             if (window.attributes.type == overlayType()) {
                 return
             }
+            val actClazz = activity.javaClass
+            if (actClazz in interceptList) {
+                dismiss()
+                return
+            }
             val spWindow = onCreateNewWindow(activity)
+            spWindow.blacklist.addAll(blacklist)
+            spWindow.interceptList.addAll(interceptList)
             dismissInLifecycle()
-            spWindow.show()
+            if (actClazz in blacklist) {
+                spWindow.setActivityLifecycleCallback(true)
+            } else {
+                spWindow.show()
+            }
             newSpWindow = spWindow
         }
 
@@ -127,6 +167,8 @@ open class SuspendedWindow @JvmOverloads constructor(
                 this@SuspendedWindow.onActivityStarted(activity)
                 if (spWindow != null) {
                     if (spWindow.isShowing) {
+                        blacklist.addAll(spWindow.blacklist)
+                        interceptList.addAll(spWindow.interceptList)
                         onDestroyNewWindow(spWindow)
                         spWindow.dismiss()
                         showInLifecycle()
