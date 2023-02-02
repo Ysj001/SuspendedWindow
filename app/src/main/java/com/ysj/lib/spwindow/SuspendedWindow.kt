@@ -26,6 +26,14 @@ open class SuspendedWindow @JvmOverloads constructor(
     @StyleRes protected val themeId: Int = ResourcesCompat.ID_NULL,
 ) : AppCompatDialog(context, themeId) {
 
+    companion object {
+        private const val KEY_BLACK_LIST = "KEY_BLACK_LIST"
+        private const val KEY_INTERCEPT_LIST = "KEY_INTERCEPT_LIST"
+
+        private val SuspendedWindow.keyPrefix
+            get() = "${javaClass.name}@${Integer.toHexString(hashCode())}:"
+    }
+
     private val activityCallback = ActivityCallback()
 
     private val blacklist = ArraySet<Class<out Activity>>()
@@ -126,14 +134,16 @@ open class SuspendedWindow @JvmOverloads constructor(
 
     private fun setActivityLifecycleCallback(register: Boolean) {
         val application = context.applicationContext as Application
+        application.unregisterActivityLifecycleCallbacks(activityCallback)
         if (register) {
             application.registerActivityLifecycleCallbacks(activityCallback)
-        } else {
-            application.unregisterActivityLifecycleCallbacks(activityCallback)
         }
+        activityCallback.registered = register
     }
 
     private inner class ActivityCallback : Application.ActivityLifecycleCallbacks {
+
+        var registered = false
 
         private var newSpWindow: SuspendedWindow? = null
 
@@ -162,16 +172,19 @@ open class SuspendedWindow @JvmOverloads constructor(
         }
 
         override fun onActivityStarted(activity: Activity) {
+            val actClazz = activity.javaClass
             val spWindow = newSpWindow
             if (activity == getAssociatedActivity()) {
                 this@SuspendedWindow.onActivityStarted(activity)
                 if (spWindow != null) {
-                    if (spWindow.isShowing) {
+                    if (spWindow.activityCallback.registered) {
                         blacklist.addAll(spWindow.blacklist)
                         interceptList.addAll(spWindow.interceptList)
                         onDestroyNewWindow(spWindow)
                         spWindow.dismiss()
-                        showInLifecycle()
+                        if (actClazz !in blacklist) {
+                            showInLifecycle()
+                        }
                     } else {
                         setActivityLifecycleCallback(false)
                     }
