@@ -19,7 +19,12 @@ import com.ysj.spwindow.demo.windows.VideoSpWindow
 class Demo1Activity : AppCompatActivity(R.layout.activity_demo1) {
 
     private val demoWindow by lazy(LazyThreadSafetyMode.NONE) {
-        VideoSpWindow.obtain(this)
+        VideoSpWindow.obtain(this).apply {
+            // 黑名单测试
+            addBlackList(Demo2Activity::class.java)
+            // 中断名单测试
+            addInterceptList(MainActivity::class.java)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
