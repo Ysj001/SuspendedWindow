@@ -3,7 +3,9 @@ package com.ysj.spwindow.demo.windows
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.Application
 import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
@@ -12,6 +14,7 @@ import android.graphics.drawable.ColorDrawable
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
+import android.util.ArrayMap
 import android.util.Log
 import android.util.Size
 import android.util.SizeF
@@ -35,7 +38,7 @@ import kotlin.math.roundToLong
  * @author Ysj
  * Create time: 2023/1/10
  */
-class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_Common) {
+class VideoSpWindow private constructor(context: Context) : SuspendedWindow(context, R.style.Theme_Common) {
 
     companion object {
 
@@ -51,6 +54,28 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
         private const val MIN_WIDTH_PERCENTAGE = 0.2f
         private const val MIN_HEIGHT_PERCENTAGE = 0.1f
 
+        private val cache = ArrayMap<Activity, VideoSpWindow>()
+
+        fun obtain(context: Context): VideoSpWindow {
+            var owner: Activity? = if (context is Activity) context else null
+            var curr: Context? = context
+            while (owner == null && curr != null) {
+                if (curr is Activity) {
+                    owner = curr
+                } else {
+                    curr = if (curr is ContextWrapper) curr.baseContext else null
+                }
+            }
+            requireNotNull(owner) { "not found owner activity." }
+            val clazz = owner
+            var spWindow = cache[clazz]
+            if (spWindow == null) {
+                spWindow = VideoSpWindow(owner)
+                spWindow.setOwnerActivity(owner)
+                cache[clazz] = spWindow
+            }
+            return spWindow
+        }
     }
 
     private val screenWidth: Int
@@ -132,6 +157,7 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
 
     override fun onStart() {
         super.onStart()
+        cache[getAssociatedActivity()] = this
         initPlayer()
         val params = window.attributes
         params.gravity = Gravity.TOP
@@ -156,11 +182,12 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
 
     override fun onStop() {
         super.onStop()
+        cache.remove(getAssociatedActivity())
         releasePlayer()
     }
 
     override fun onCreateNewWindow(context: Context): SuspendedWindow {
-        val spWindow = VideoSpWindow(context)
+        val spWindow = obtain(context)
         spWindow.currentSpeed = currentSpeed
         val started = this.isStarted
         setPlayerStart(false)
@@ -193,23 +220,28 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
         changeScreenMode(spWindow.screenMode, false)
     }
 
-    override fun onActivityResume(activity: Activity) {
-        super.onActivityResume(activity)
-        if (isShowing && activity == getAssociatedActivity()) {
+    override fun onActivityResumed(activity: Activity) {
+        super.onActivityResumed(activity)
+        if (isShowing) {
             val started = isStarted
             setPlayerStart(true)
             isStarted = started
         }
     }
 
-    override fun onActivityPause(activity: Activity) {
-        super.onActivityPause(activity)
-        if (isShowing && activity == getAssociatedActivity()) {
+    override fun onActivityPaused(activity: Activity) {
+        super.onActivityPaused(activity)
+        if (isShowing) {
             val started = isStarted
             setPlayerStart(false)
             isStarted = started
             surfaceProvider.notFirstRender = true
         }
+    }
+
+    override fun onActivityDestroyed(activity: Activity) {
+        super.onActivityDestroyed(activity)
+        cache.remove(activity)
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
@@ -251,7 +283,7 @@ class VideoSpWindow(context: Context) : SuspendedWindow(context, R.style.Theme_C
         player.prepareAsync()
         player.isLooping = true
         onSpeedChanged(vb.controllerView.maxScreen.btn10)
-        isStarted = true
+        isStarted = false
         Log.d(TAG, "setVideoSource: $path")
     }
 

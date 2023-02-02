@@ -19,7 +19,7 @@ import com.ysj.spwindow.demo.windows.VideoSpWindow
 class Demo1Activity : AppCompatActivity(R.layout.activity_demo1) {
 
     private val demoWindow by lazy(LazyThreadSafetyMode.NONE) {
-        VideoSpWindow(this)
+        VideoSpWindow.obtain(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
