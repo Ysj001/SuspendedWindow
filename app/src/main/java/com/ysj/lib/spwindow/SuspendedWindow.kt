@@ -4,19 +4,15 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
+import android.os.Handler
+import android.os.Looper
 import android.view.Window
 import android.view.WindowManager
-import androidx.annotation.FloatRange
 import androidx.annotation.StyleRes
 import androidx.appcompat.app.AppCompatDialog
 import androidx.core.content.res.ResourcesCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 
 /**
  * Base class for Suspended Window.
@@ -67,8 +63,15 @@ open class SuspendedWindow @JvmOverloads constructor(
         currentParams.y = newParams.y
     }
 
-    protected open fun onActivityResume(activity: Activity) = Unit
-    protected open fun onActivityPause(activity: Activity) = Unit
+    protected open fun onActivityStarted(activity: Activity) = Unit
+
+    protected open fun onActivityResumed(activity: Activity) = Unit
+
+    protected open fun onActivityPaused(activity: Activity) = Unit
+
+    protected open fun onActivityStopped(activity: Activity) = Unit
+
+    protected open fun onActivityDestroyed(activity: Activity) = Unit
 
     /**
      *  @return The activity associated with this dialog, or null if there is no associated activity.
@@ -120,26 +123,47 @@ open class SuspendedWindow @JvmOverloads constructor(
 
         override fun onActivityStarted(activity: Activity) {
             val spWindow = newSpWindow
-            if (spWindow != null && activity == getAssociatedActivity()) {
-                if (spWindow.isShowing) {
-                    onDestroyNewWindow(spWindow)
-                    spWindow.dismiss()
-                    showInLifecycle()
-                } else {
-                    setActivityLifecycleCallback(false)
+            if (activity == getAssociatedActivity()) {
+                this@SuspendedWindow.onActivityStarted(activity)
+                if (spWindow != null) {
+                    if (spWindow.isShowing) {
+                        onDestroyNewWindow(spWindow)
+                        spWindow.dismiss()
+                        showInLifecycle()
+                    } else {
+                        setActivityLifecycleCallback(false)
+                    }
+                    newSpWindow = null
                 }
-                newSpWindow = null
             }
         }
 
-        override fun onActivityResumed(activity: Activity) = onActivityResume(activity)
-        override fun onActivityPaused(activity: Activity) = onActivityPause(activity)
-        override fun onActivityStopped(activity: Activity) = Unit
+        override fun onActivityResumed(activity: Activity) {
+            if (activity == getAssociatedActivity()) {
+                this@SuspendedWindow.onActivityResumed(activity)
+            }
+        }
+
+        override fun onActivityPaused(activity: Activity) {
+            if (activity == getAssociatedActivity()) {
+                this@SuspendedWindow.onActivityPaused(activity)
+            }
+        }
+
+        override fun onActivityStopped(activity: Activity) {
+            if (activity == getAssociatedActivity()) {
+                this@SuspendedWindow.onActivityStopped(activity)
+            }
+        }
+
         override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
 
         override fun onActivityDestroyed(activity: Activity) {
             if (activity == getAssociatedActivity()) {
-                dismiss()
+                this@SuspendedWindow.onActivityDestroyed(activity)
+                Handler(Looper.getMainLooper()).post {
+                    setActivityLifecycleCallback(false)
+                }
             }
         }
 
