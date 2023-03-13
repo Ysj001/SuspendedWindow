@@ -217,7 +217,7 @@ class VideoSpWindow private constructor(context: Context) : SuspendedWindow(cont
         setPlayerStart(started)
         contentX = spWindow.contentX
         contentY = spWindow.contentY
-        changeScreenMode(spWindow.screenMode, false)
+        screenMode = spWindow.screenMode
     }
 
     override fun onActivityResumed(activity: Activity) {
