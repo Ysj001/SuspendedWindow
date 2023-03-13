@@ -172,29 +172,15 @@ open class SuspendedWindow @JvmOverloads constructor(
         }
 
         override fun onActivityStarted(activity: Activity) {
-            val actClazz = activity.javaClass
-            val spWindow = newSpWindow
             if (activity == getAssociatedActivity()) {
+                destroyNewWindow(activity)
                 this@SuspendedWindow.onActivityStarted(activity)
-                if (spWindow != null) {
-                    if (spWindow.activityCallback.registered) {
-                        blacklist.addAll(spWindow.blacklist)
-                        interceptList.addAll(spWindow.interceptList)
-                        onDestroyNewWindow(spWindow)
-                        spWindow.dismiss()
-                        if (actClazz !in blacklist) {
-                            showInLifecycle()
-                        }
-                    } else {
-                        setActivityLifecycleCallback(false)
-                    }
-                    newSpWindow = null
-                }
             }
         }
 
         override fun onActivityResumed(activity: Activity) {
             if (activity == getAssociatedActivity()) {
+                destroyNewWindow(activity)
                 this@SuspendedWindow.onActivityResumed(activity)
             }
         }
@@ -220,6 +206,22 @@ open class SuspendedWindow @JvmOverloads constructor(
                     setActivityLifecycleCallback(false)
                 }
             }
+        }
+
+        private fun destroyNewWindow(activity: Activity) {
+            val spWindow = newSpWindow ?: return
+            if (spWindow.activityCallback.registered) {
+                blacklist.addAll(spWindow.blacklist)
+                interceptList.addAll(spWindow.interceptList)
+                onDestroyNewWindow(spWindow)
+                spWindow.dismiss()
+                if (activity.javaClass !in blacklist) {
+                    showInLifecycle()
+                }
+            } else {
+                setActivityLifecycleCallback(false)
+            }
+            newSpWindow = null
         }
 
         private fun dismissInLifecycle() {
